@@ -56,7 +56,17 @@ pip install -e .
 
 ### Claude Code
 
-Add to your project's `.claude/settings.json` or global Claude Code settings:
+Register the server using the CLI (runs from your project directory, so `.repro/` logs land there):
+
+```bash
+# Global — available in all projects
+claude mcp add repro-mcp --scope user -- python -m repro_mcp.server
+
+# Project-local — checked into .mcp.json alongside your code
+claude mcp add repro-mcp --scope project -- python -m repro_mcp.server
+```
+
+Or add it manually to `.mcp.json` in your project root:
 
 ```json
 {
@@ -69,7 +79,7 @@ Add to your project's `.claude/settings.json` or global Claude Code settings:
 }
 ```
 
-The server uses the working directory as the project root, so run Claude Code from your project directory.
+Verify it's running with `claude mcp list`.
 
 You can also wire automatic logging via Claude Code hooks in `.claude/settings.json`:
 
