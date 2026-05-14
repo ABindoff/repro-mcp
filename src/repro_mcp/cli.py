@@ -34,11 +34,12 @@ def cmd_start(args) -> None:
         return
 
     sid = _session_id()
+    project_name = args.project_name or root.name
     snapshot = env_mod.capture()
 
     logger = SessionLogger(sid, root)
     logger.write_header(
-        args.project_name,
+        project_name,
         args.goal,
         snapshot.git_branch,
         snapshot.git_hash,
@@ -49,7 +50,7 @@ def cmd_start(args) -> None:
     active_path.write_text(
         json.dumps({
             "session_id": sid,
-            "project_name": args.project_name,
+            "project_name": project_name,
             "goal": args.goal,
             "branch": snapshot.git_branch,
             "git_hash": snapshot.git_hash,
@@ -87,8 +88,8 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_start = sub.add_parser("start", help="Start a reproducibility session")
-    p_start.add_argument("project_name", help="Short project name")
-    p_start.add_argument("goal", help="What this session is trying to accomplish")
+    p_start.add_argument("project_name", nargs="?", default=None, help="Short project name (defaults to current directory name)")
+    p_start.add_argument("goal", nargs="?", default="Claude Code session", help="What this session is trying to accomplish")
     p_start.set_defaults(func=cmd_start)
 
     p_end = sub.add_parser("end", help="End the active reproducibility session")
