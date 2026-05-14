@@ -1,0 +1,29 @@
+# repro-mcp rule configuration
+# Copy this file to .repro/rules.yaml in your project to customise.
+# All rules are enabled by default. Set enabled: false to silence a rule.
+
+rules:
+  random-seed:
+    enabled: true
+    # Any RNG call must have a corresponding seed set in the same context.
+    # Severity: error — blocks reproducibility entirely if violated.
+
+  env-pinned:
+    enabled: true
+    # requirements.txt or environment.yml must pin package versions.
+    # Severity: warn — environment drift is a common silent failure mode.
+
+  no-hardcoded-paths:
+    enabled: true
+    # Absolute paths break portability across machines and users.
+    # Severity: error — use config files or relative paths instead.
+
+  no-inplace-data-mutation:
+    enabled: true
+    # Raw data directories should be read-only.
+    # Severity: warn — overwriting raw data is irreversible.
+
+  gpu-nondeterminism:
+    enabled: true
+    # CUDA operations can be nondeterministic by default.
+    # Severity: info — set torch.use_deterministic_algorithms(True) to fix.
