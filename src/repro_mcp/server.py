@@ -154,35 +154,53 @@ def _find_active_session_file() -> tuple[Path, Path] | None:
     return None
 
 
-def _load_session_from_disk(session_id: str) -> None:
-    """Reconstruct a CLI-started session into the in-memory registry."""
+def _require_session(session_id: str):
+    """Return Session from registry or reconstruct from disk; raise KeyError if not found."""
+    from .session import Session
+    from .logger import SessionLogger
+
+    s = registry.get(session_id)
+    if s is not None:
+        return s
+
     found = _find_active_session_file()
     if found is None:
-        return
-    active_path, project_root = found
-    try:
-        active = json.loads(active_path.read_text(encoding="utf-8"))
-        if active.get("session_id") != session_id:
-            return
-        from .session import Session
-        from .logger import SessionLogger
-        logger = SessionLogger(session_id, project_root)
-        session = Session(
-            session_id=session_id,
-            project_name=active["project_name"],
-            goal=active["goal"],
-            branch=active.get("branch"),
-            git_hash=active.get("git_hash"),
-            project_root=project_root,
-            logger=logger,
+        raise KeyError(
+            f"No active session '{session_id}': no active session file found. "
+            "Call session_start or start a session via the CLI hook."
         )
-        registry._sessions[session_id] = session
-    except Exception:
-        pass
+    active_path, project_root = found
+    active = json.loads(active_path.read_text(encoding="utf-8"))
+    if active.get("session_id") != session_id:
+        raise KeyError(
+            f"No active session '{session_id}': active file has session "
+            f"'{active.get('session_id')}' — ID mismatch."
+        )
+    logger = SessionLogger(session_id, project_root)
+    session = Session(
+        session_id=session_id,
+        project_name=active["project_name"],
+        goal=active["goal"],
+        branch=active.get("branch"),
+        git_hash=active.get("git_hash"),
+        project_root=project_root,
+        logger=logger,
+    )
+    registry._sessions[session_id] = session
+    return session
 
 
 @app.call_tool()
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextContent]:
+    try:
+        return await _call_tool_inner(name, arguments)
+    except KeyError as e:
+        return [types.TextContent(type="text", text=str(e))]
+    except Exception as e:
+        return [types.TextContent(type="text", text=f"Error: {type(e).__name__}: {e}")]
+
+
+async def _call_tool_inner(name: str, arguments: dict[str, Any]) -> list[types.TextContent]:
 
     if name == "session_start":
         root = _project_root()
@@ -215,14 +233,16 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
         )]
 
     if name == "session_end":
-        _load_session_from_disk(arguments["session_id"])
-        session = registry.end(
-            session_id=arguments["session_id"],
-            outcome=arguments["outcome"],
-            notes=arguments.get("notes"),
+        session = _require_session(arguments["session_id"])
+        session.logger.write_footer(arguments["outcome"], arguments.get("notes"))
+        session.logger.update_index(
+            session.project_name, session.goal, arguments["outcome"],
+            session.branch, session.git_hash,
         )
-        active_path = _project_root() / ACTIVE_SESSION_FILE
-        if active_path.exists():
+        del registry._sessions[arguments["session_id"]]
+        found = _find_active_session_file()
+        if found is not None:
+            active_path, _ = found
             try:
                 active = json.loads(active_path.read_text(encoding="utf-8"))
                 if active.get("session_id") == arguments["session_id"]:
@@ -235,8 +255,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
         )]
 
     if name == "log_exchange":
-        _load_session_from_disk(arguments["session_id"])
-        session = registry.require(arguments["session_id"])
+        session = _require_session(arguments["session_id"])
         session.logger.log_exchange(
             prompt=arguments["prompt"],
             response=arguments["response"],
@@ -246,8 +265,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
         return [types.TextContent(type="text", text="Exchange logged.")]
 
     if name == "log_decision":
-        _load_session_from_disk(arguments["session_id"])
-        session = registry.require(arguments["session_id"])
+        session = _require_session(arguments["session_id"])
         session.logger.log_decision(
             decision=arguments["decision"],
             rationale=arguments["rationale"],
@@ -256,8 +274,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
         return [types.TextContent(type="text", text="Decision logged.")]
 
     if name == "snapshot_environment":
-        _load_session_from_disk(arguments["session_id"])
-        session = registry.require(arguments["session_id"])
+        session = _require_session(arguments["session_id"])
         snapshot = env_mod.capture()
         snapshot.label = arguments.get("label", "")
         session.logger.log_snapshot(snapshot)
@@ -267,8 +284,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
         )]
 
     if name == "check_rules":
-        _load_session_from_disk(arguments["session_id"])
-        session = registry.require(arguments["session_id"])
+        session = _require_session(arguments["session_id"])
         violations = run_checks(arguments["context"], session.project_root)
         if not violations:
             return [types.TextContent(type="text", text="All rules passed.")]
