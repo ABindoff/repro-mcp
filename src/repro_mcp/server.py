@@ -1,5 +1,6 @@
 """repro-mcp: Reproducibility logging and rule enforcement MCP server."""
 
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,7 @@ import mcp.types as types
 from mcp.server import Server
 
 from . import environment as env_mod
+from .cli import ACTIVE_SESSION_FILE
 from .rules import run_checks
 from .session import SessionRegistry
 
@@ -147,11 +149,24 @@ async def list_tools() -> list[types.Tool]:
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextContent]:
 
     if name == "session_start":
+        root = _project_root()
         session = registry.start(
             project_name=arguments["project_name"],
             goal=arguments["goal"],
-            project_root=_project_root(),
+            project_root=root,
             branch=arguments.get("branch"),
+        )
+        active_path = root / ACTIVE_SESSION_FILE
+        active_path.parent.mkdir(parents=True, exist_ok=True)
+        active_path.write_text(
+            json.dumps({
+                "session_id": session.session_id,
+                "project_name": session.project_name,
+                "goal": session.goal,
+                "branch": session.branch,
+                "git_hash": session.git_hash,
+            }),
+            encoding="utf-8",
         )
         return [types.TextContent(
             type="text",
@@ -169,6 +184,14 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
             outcome=arguments["outcome"],
             notes=arguments.get("notes"),
         )
+        active_path = _project_root() / ACTIVE_SESSION_FILE
+        if active_path.exists():
+            try:
+                active = json.loads(active_path.read_text(encoding="utf-8"))
+                if active.get("session_id") == arguments["session_id"]:
+                    active_path.unlink()
+            except Exception:
+                pass
         return [types.TextContent(
             type="text",
             text=f"Session `{arguments['session_id']}` closed ({arguments['outcome']}). Index updated.",
