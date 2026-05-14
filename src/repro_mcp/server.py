@@ -145,6 +145,32 @@ async def list_tools() -> list[types.Tool]:
 # Tool handlers
 # ---------------------------------------------------------------------------
 
+def _load_session_from_disk(session_id: str, project_root: Path) -> None:
+    """Reconstruct a CLI-started session into the in-memory registry."""
+    active_path = project_root / ACTIVE_SESSION_FILE
+    if not active_path.exists():
+        return
+    try:
+        active = json.loads(active_path.read_text(encoding="utf-8"))
+        if active.get("session_id") != session_id:
+            return
+        from .session import Session
+        from .logger import SessionLogger
+        logger = SessionLogger(session_id, project_root)
+        session = Session(
+            session_id=session_id,
+            project_name=active["project_name"],
+            goal=active["goal"],
+            branch=active.get("branch"),
+            git_hash=active.get("git_hash"),
+            project_root=project_root,
+            logger=logger,
+        )
+        registry._sessions[session_id] = session
+    except Exception:
+        pass
+
+
 @app.call_tool()
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextContent]:
 
@@ -179,6 +205,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
         )]
 
     if name == "session_end":
+        _load_session_from_disk(arguments["session_id"], _project_root())
         session = registry.end(
             session_id=arguments["session_id"],
             outcome=arguments["outcome"],
@@ -198,6 +225,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
         )]
 
     if name == "log_exchange":
+        _load_session_from_disk(arguments["session_id"], _project_root())
         session = registry.require(arguments["session_id"])
         session.logger.log_exchange(
             prompt=arguments["prompt"],
@@ -208,6 +236,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
         return [types.TextContent(type="text", text="Exchange logged.")]
 
     if name == "log_decision":
+        _load_session_from_disk(arguments["session_id"], _project_root())
         session = registry.require(arguments["session_id"])
         session.logger.log_decision(
             decision=arguments["decision"],
@@ -217,6 +246,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
         return [types.TextContent(type="text", text="Decision logged.")]
 
     if name == "snapshot_environment":
+        _load_session_from_disk(arguments["session_id"], _project_root())
         session = registry.require(arguments["session_id"])
         snapshot = env_mod.capture()
         snapshot.label = arguments.get("label", "")
@@ -227,6 +257,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
         )]
 
     if name == "check_rules":
+        _load_session_from_disk(arguments["session_id"], _project_root())
         session = registry.require(arguments["session_id"])
         violations = run_checks(arguments["context"], session.project_root)
         if not violations:
