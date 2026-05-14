@@ -145,11 +145,21 @@ async def list_tools() -> list[types.Tool]:
 # Tool handlers
 # ---------------------------------------------------------------------------
 
-def _load_session_from_disk(session_id: str, project_root: Path) -> None:
+def _find_active_session_file() -> tuple[Path, Path] | None:
+    """Return (active_session_path, project_root) searching CWD then home dir."""
+    for root in [Path(os.getcwd()), Path.home()]:
+        p = root / ACTIVE_SESSION_FILE
+        if p.exists():
+            return p, root
+    return None
+
+
+def _load_session_from_disk(session_id: str) -> None:
     """Reconstruct a CLI-started session into the in-memory registry."""
-    active_path = project_root / ACTIVE_SESSION_FILE
-    if not active_path.exists():
+    found = _find_active_session_file()
+    if found is None:
         return
+    active_path, project_root = found
     try:
         active = json.loads(active_path.read_text(encoding="utf-8"))
         if active.get("session_id") != session_id:
