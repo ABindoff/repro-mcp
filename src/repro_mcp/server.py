@@ -215,7 +215,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
         )]
 
     if name == "session_end":
-        _load_session_from_disk(arguments["session_id"], _project_root())
+        _load_session_from_disk(arguments["session_id"])
         session = registry.end(
             session_id=arguments["session_id"],
             outcome=arguments["outcome"],
@@ -235,7 +235,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
         )]
 
     if name == "log_exchange":
-        _load_session_from_disk(arguments["session_id"], _project_root())
+        _load_session_from_disk(arguments["session_id"])
         session = registry.require(arguments["session_id"])
         session.logger.log_exchange(
             prompt=arguments["prompt"],
@@ -246,7 +246,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
         return [types.TextContent(type="text", text="Exchange logged.")]
 
     if name == "log_decision":
-        _load_session_from_disk(arguments["session_id"], _project_root())
+        _load_session_from_disk(arguments["session_id"])
         session = registry.require(arguments["session_id"])
         session.logger.log_decision(
             decision=arguments["decision"],
@@ -256,7 +256,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
         return [types.TextContent(type="text", text="Decision logged.")]
 
     if name == "snapshot_environment":
-        _load_session_from_disk(arguments["session_id"], _project_root())
+        _load_session_from_disk(arguments["session_id"])
         session = registry.require(arguments["session_id"])
         snapshot = env_mod.capture()
         snapshot.label = arguments.get("label", "")
@@ -267,7 +267,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
         )]
 
     if name == "check_rules":
-        _load_session_from_disk(arguments["session_id"], _project_root())
+        _load_session_from_disk(arguments["session_id"])
         session = registry.require(arguments["session_id"])
         violations = run_checks(arguments["context"], session.project_root)
         if not violations:
