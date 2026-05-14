@@ -81,22 +81,70 @@ Or add it manually to `.mcp.json` in your project root:
 
 Verify it's running with `claude mcp list`.
 
-You can also wire automatic logging via Claude Code hooks in `.claude/settings.json`:
+#### Auto-start via hooks (recommended)
+
+Calling `session_start` manually triggers a permission prompt. The better approach is a `UserPromptSubmit` hook that auto-starts a session on your first message — no prompts, no manual steps.
+
+Add this to `~/.claude/settings.json` (global, applies to all projects):
 
 ```json
 {
   "hooks": {
-    "PostToolUse": [
+    "UserPromptSubmit": [
       {
-        "matcher": "",
-        "hooks": [{ "type": "command", "command": "echo Hook fired" }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/path/to/python -m repro_mcp.cli start",
+            "timeout": 30
+          }
+        ]
       }
     ]
   }
 }
 ```
 
-*(Full hook-based auto-logging guide coming once the Cline `PostAssistantTurn` PR lands.)*
+Replace `/path/to/python` with the full path to your Python executable. Find it with:
+
+```bash
+# macOS / Linux
+which python
+
+# Windows (PowerShell)
+(Get-Command python).Source
+```
+
+The hook auto-detects the project name from your current directory and uses `"Claude Code session"` as the default goal. You can override either:
+
+```
+python -m repro_mcp.cli start my-project "Fit Cox model to patient cohort"
+```
+
+The hook is idempotent — if a session is already active it exits silently, so firing on every message is safe.
+
+#### Ending a session
+
+Close the active session from the terminal when you're done:
+
+```bash
+python -m repro_mcp.cli end success       # or: abandoned, inconclusive
+python -m repro_mcp.cli end success --notes "Switched to Efron method"
+```
+
+Or call `session_end` via the MCP tool if you've allowlisted repro-mcp tools (add `"mcp__repro-mcp__*"` to the `permissions.allow` array in `~/.claude/settings.local.json`).
+
+#### Allowlisting MCP tools (optional)
+
+If you want to call repro-mcp tools directly (e.g. `log_decision`, `log_exchange`) without permission prompts, add this to `~/.claude/settings.local.json`:
+
+```json
+{
+  "permissions": {
+    "allow": ["mcp__repro-mcp__*"]
+  }
+}
+```
 
 ### Cline (VS Code extension)
 
