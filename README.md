@@ -5,8 +5,11 @@
 > 
 > If you are looking for an infallible, automated audit trail that doesn't rely on the AI remembering to log its own decisions, we strongly recommend using the sister project: **[repro-git-hook](https://github.com/ABindoff/repro-git-hook)**. 
 >
-> `repro-mcp` relies on "In-band" logging (the AI must actively call the MCP logging tools). In practice, AI agents often forget to do this when tackling complex coding problems, leading to missing logs. `repro-git-hook` solves this by operating "Out-of-band" — it passively hooks into your `git commit` lifecycle to run reproducibility linting, detect secrets, and extract native IDE transcripts automatically.
+> **When to use `repro-mcp`:**
+> `repro-mcp` relies on "In-band" logging (the AI must actively call the MCP logging tools). While AI agents sometimes forget to do this when tackling complex coding problems, **`repro-mcp` has one major advantage: it does not require Git.** This makes it the perfect tool for auditing non-code workflows like document creation, legal drafting, or policy writing where a git repository isn't being used.
 >
+> **When to use `repro-git-hook`:**
+> If you are working in a Git-tracked coding environment, `repro-git-hook` provides an infallible audit trail by operating "Out-of-band" — it passively hooks into your `git commit` lifecycle to run reproducibility linting, detect secrets, and extract native IDE transcripts automatically.
 > **To install `repro-git-hook` instantly:**
 > Add the following to your project's `.git/hooks/pre-commit` (requires [uv](https://docs.astral.sh/uv/)):
 > ```bash
