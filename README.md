@@ -36,7 +36,14 @@ All output goes to `.repro/` in your project directory — plain markdown, git-f
 
 ## Installation
 
-Requires Python 3.11+.
+Requires Python 3.11+. The recommended way is via [`uv`](https://docs.astral.sh/uv/):
+
+```bash
+# No install step — uvx runs it in an isolated environment
+uvx repro-mcp
+```
+
+Or with pip:
 
 ```bash
 pip install repro-mcp
@@ -56,27 +63,23 @@ pip install -e .
 
 ### Claude Code
 
-Register the server using the CLI (runs from your project directory, so `.repro/` logs land there):
-
-```bash
-# Global — available in all projects
-claude mcp add repro-mcp --scope user -- python -m repro_mcp.server
-
-# Project-local — checked into .mcp.json alongside your code
-claude mcp add repro-mcp --scope project -- python -m repro_mcp.server
-```
-
-Or add it manually to `.mcp.json` in your project root:
+Add it manually to `.mcp.json` in your project root (recommended — checked into git alongside your code):
 
 ```json
 {
   "mcpServers": {
     "repro-mcp": {
-      "command": "python",
-      "args": ["-m", "repro_mcp.server"]
+      "command": "uvx",
+      "args": ["repro-mcp"]
     }
   }
 }
+```
+
+Or register globally via the Claude Code CLI:
+
+```bash
+claude mcp add repro-mcp --scope user -- uvx repro-mcp
 ```
 
 Verify it's running with `claude mcp list`.
@@ -95,7 +98,7 @@ Add this to `~/.claude/settings.json` (global, applies to all projects):
         "hooks": [
           {
             "type": "command",
-            "command": "/path/to/python -m repro_mcp.cli start",
+            "command": "repro start",
             "timeout": 30
           }
         ]
@@ -105,20 +108,10 @@ Add this to `~/.claude/settings.json` (global, applies to all projects):
 }
 ```
 
-Replace `/path/to/python` with the full path to your Python executable. Find it with:
+The `repro` command is installed alongside `repro-mcp`. It auto-detects the project name from your current directory and uses `"Claude Code session"` as the default goal. You can override either:
 
 ```bash
-# macOS / Linux
-which python
-
-# Windows (PowerShell)
-(Get-Command python).Source
-```
-
-The hook auto-detects the project name from your current directory and uses `"Claude Code session"` as the default goal. You can override either:
-
-```
-python -m repro_mcp.cli start my-project "Fit Cox model to patient cohort"
+repro start my-project "Fit Cox model to patient cohort"
 ```
 
 The hook is idempotent — if a session is already active it exits silently, so firing on every message is safe.
@@ -128,8 +121,8 @@ The hook is idempotent — if a session is already active it exits silently, so 
 Close the active session from the terminal when you're done:
 
 ```bash
-python -m repro_mcp.cli end success       # or: abandoned, inconclusive
-python -m repro_mcp.cli end success --notes "Switched to Efron method"
+repro end success       # or: abandoned, inconclusive
+repro end success --notes "Switched to Efron method"
 ```
 
 Or call `session_end` via the MCP tool if you've allowlisted repro-mcp tools (add `"mcp__repro-mcp__*"` to the `permissions.allow` array in `~/.claude/settings.local.json`).
@@ -288,7 +281,7 @@ Add `.repro/logs/` to `.gitignore` if you want to keep logs local, or commit the
 
 ## Roadmap
 
-- [ ] Publish to PyPI
+- [x] Publish to PyPI
 - [ ] Cline upstream PR: `PostAssistantTurn` hook for automatic `log_exchange` calls in the VS Code extension
 - [ ] `data-provenance` rule: flag data loading that doesn't reference a hash or versioned source
 - [ ] Export session log as a structured methods-section draft

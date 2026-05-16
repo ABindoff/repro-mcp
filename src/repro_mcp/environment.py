@@ -1,10 +1,13 @@
 """Captures a snapshot of the current compute environment."""
 
+import os
 import platform
 import subprocess
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+
+_GIT_ENV = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
 
 
 @dataclass
@@ -39,7 +42,10 @@ class EnvironmentSnapshot:
 
 def _run(cmd: list[str]) -> str | None:
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=10, env=_GIT_ENV,
+            stdin=subprocess.DEVNULL,
+        )
         return result.stdout.strip() if result.returncode == 0 else None
     except Exception:
         return None
@@ -49,7 +55,6 @@ def capture() -> EnvironmentSnapshot:
     python_version = sys.version.replace("\n", " ")
     platform_info = f"{platform.system()} {platform.release()} ({platform.machine()})"
 
-    # pip freeze is the most universal; fall back gracefully
     pip_output = _run([sys.executable, "-m", "pip", "freeze"])
     packages = pip_output.splitlines() if pip_output else []
 

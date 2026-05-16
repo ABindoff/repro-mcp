@@ -1,5 +1,6 @@
 """In-memory session registry with disk persistence."""
 
+import os
 import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -7,6 +8,8 @@ from pathlib import Path
 
 from . import environment as env_mod
 from .logger import SessionLogger
+
+_GIT_ENV = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
 
 
 def _session_id() -> str:
@@ -17,7 +20,8 @@ def _git_branch() -> str | None:
     try:
         r = subprocess.run(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True, text=True, timeout=5, env=_GIT_ENV,
+            stdin=subprocess.DEVNULL,
         )
         return r.stdout.strip() if r.returncode == 0 else None
     except Exception:
@@ -42,8 +46,7 @@ class SessionRegistry:
     def start(self, project_name: str, goal: str, project_root: Path, branch: str | None = None) -> Session:
         sid = _session_id()
         snapshot = env_mod.capture()
-
-        resolved_branch = branch or snapshot.git_branch or _git_branch()
+        resolved_branch = branch or snapshot.git_branch
         git_hash = snapshot.git_hash
 
         logger = SessionLogger(sid, project_root)

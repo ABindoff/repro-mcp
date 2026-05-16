@@ -1,5 +1,6 @@
 """Writes and maintains .repro/ markdown log files."""
 
+import os
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,16 +11,39 @@ REPRO_DIR = ".repro"
 LOGS_DIR = f"{REPRO_DIR}/logs"
 INDEX_FILE = f"{REPRO_DIR}/index.md"
 
+# Prevent git from blocking on credential prompts in headless/MCP contexts.
+# GIT_ASKPASS is intentionally omitted — 'echo' is a cmd.exe builtin on Windows,
+# not a standalone executable, so setting it would break subprocess spawning.
+_GIT_ENV = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
 
 
-def _git_diff_summary() -> str | None:
+def is_git_repo(path: Path | None = None) -> bool:
+    """Return True if path (or any of its parents) contains a .git entry.
+
+    Uses a pure filesystem walk — no subprocess — so it cannot hang.
+    """
+    check = (path or Path.cwd()).resolve()
+    while True:
+        if (check / ".git").exists():
+            return True
+        parent = check.parent
+        if parent == check:
+            return False
+        check = parent
+
+
+def _git_diff_summary(cwd: Path | None = None) -> str | None:
+    if not is_git_repo(cwd):
+        return None
     try:
         result = subprocess.run(
             ["git", "diff", "--stat", "HEAD"],
-            capture_output=True, text=True, timeout=10
+            capture_output=True, text=True, timeout=10,
+            cwd=cwd, env=_GIT_ENV, stdin=subprocess.DEVNULL,
         )
         return result.stdout.strip() if result.returncode == 0 and result.stdout.strip() else None
     except Exception:
@@ -101,7 +125,7 @@ class SessionLogger:
         self.append(snapshot.to_markdown() + "\n\n---")
 
     def write_footer(self, outcome: str, notes: str | None) -> None:
-        diff = _git_diff_summary()
+        diff = _git_diff_summary(self.project_root)
         lines = [f"## Session close — {_now()}"]
         lines.append(f"**Outcome:** {outcome}  ")
         if notes:

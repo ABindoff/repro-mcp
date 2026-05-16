@@ -6,11 +6,33 @@ build-backend = "hatchling.build"
 name = "repro-mcp"
 version = "0.1.0"
 description = "Reproducibility logging and rule enforcement MCP server for scientific computing"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "ABindoff" }]
 requires-python = ">=3.11"
+keywords = ["mcp", "reproducibility", "science", "logging", "ai"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+]
 dependencies = [
     "mcp[cli]>=1.0.0",
     "pyyaml>=6.0",
 ]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.urls]
+Homepage = "https://github.com/ABindoff/repro-mcp"
+Repository = "https://github.com/ABindoff/repro-mcp"
+Issues = "https://github.com/ABindoff/repro-mcp/issues"
 
 [project.scripts]
 repro-mcp = "repro_mcp.server:main"

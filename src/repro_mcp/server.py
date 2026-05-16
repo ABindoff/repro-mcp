@@ -1,5 +1,6 @@
 """repro-mcp: Reproducibility logging and rule enforcement MCP server."""
 
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -204,13 +205,28 @@ async def _call_tool_inner(name: str, arguments: dict[str, Any]) -> list[types.T
 
     if name == "session_start":
         root = _project_root()
-        session = registry.start(
+        active_path = root / ACTIVE_SESSION_FILE
+        if active_path.exists():
+            try:
+                existing = json.loads(active_path.read_text(encoding="utf-8"))
+                sid = existing.get("session_id", "unknown")
+                return [types.TextContent(
+                    type="text",
+                    text=(
+                        f"Session already active: `{sid}`\n"
+                        f"Log: `{root / '.repro' / 'logs' / f'{sid}.md'}`\n"
+                        "Call `session_end` first if you want to start a new session."
+                    ),
+                )]
+            except Exception:
+                pass
+        session = await asyncio.to_thread(
+            registry.start,
             project_name=arguments["project_name"],
             goal=arguments["goal"],
             project_root=root,
             branch=arguments.get("branch"),
         )
-        active_path = root / ACTIVE_SESSION_FILE
         active_path.parent.mkdir(parents=True, exist_ok=True)
         active_path.write_text(
             json.dumps({
@@ -233,9 +249,12 @@ async def _call_tool_inner(name: str, arguments: dict[str, Any]) -> list[types.T
         )]
 
     if name == "session_end":
+        from .logger import is_git_repo
         session = _require_session(arguments["session_id"])
-        session.logger.write_footer(arguments["outcome"], arguments.get("notes"))
-        session.logger.update_index(
+        has_git = is_git_repo(session.project_root)
+        await asyncio.to_thread(session.logger.write_footer, arguments["outcome"], arguments.get("notes"))
+        await asyncio.to_thread(
+            session.logger.update_index,
             session.project_name, session.goal, arguments["outcome"],
             session.branch, session.git_hash,
         )
@@ -249,10 +268,13 @@ async def _call_tool_inner(name: str, arguments: dict[str, Any]) -> list[types.T
                     active_path.unlink()
             except Exception:
                 pass
-        return [types.TextContent(
-            type="text",
-            text=f"Session `{arguments['session_id']}` closed ({arguments['outcome']}). Index updated.",
-        )]
+        msg = f"Session `{arguments['session_id']}` closed ({arguments['outcome']}). Index updated."
+        if not has_git:
+            msg += (
+                f"\n\n**Warning:** No git repository found at `{session.project_root}` — "
+                "git diff summary was skipped. For full reproducibility, use version control."
+            )
+        return [types.TextContent(type="text", text=msg)]
 
     if name == "log_exchange":
         session = _require_session(arguments["session_id"])
@@ -275,7 +297,7 @@ async def _call_tool_inner(name: str, arguments: dict[str, Any]) -> list[types.T
 
     if name == "snapshot_environment":
         session = _require_session(arguments["session_id"])
-        snapshot = env_mod.capture()
+        snapshot = await asyncio.to_thread(env_mod.capture)
         snapshot.label = arguments.get("label", "")
         session.logger.log_snapshot(snapshot)
         return [types.TextContent(
@@ -304,26 +326,29 @@ async def _call_tool_inner(name: str, arguments: dict[str, Any]) -> list[types.T
 
 @app.list_resources()
 async def list_resources() -> list[types.Resource]:
-    resources = []
-    root = _project_root()
-    index = root / ".repro" / "index.md"
-    if index.exists():
-        resources.append(types.Resource(
-            uri="repro://index",
-            name="Reproducibility Index",
-            description="Table of all logged sessions",
-            mimeType="text/markdown",
-        ))
-    logs_dir = root / ".repro" / "logs"
-    if logs_dir.exists():
-        for log_file in sorted(logs_dir.glob("*.md"), reverse=True)[:20]:
-            sid = log_file.stem
+    def _collect() -> list[types.Resource]:
+        resources = []
+        root = _project_root()
+        index = root / ".repro" / "index.md"
+        if index.exists():
             resources.append(types.Resource(
-                uri=f"repro://session/{sid}",
-                name=f"Session {sid}",
+                uri="repro://index",
+                name="Reproducibility Index",
+                description="Table of all logged sessions",
                 mimeType="text/markdown",
             ))
-    return resources
+        logs_dir = root / ".repro" / "logs"
+        if logs_dir.exists():
+            for log_file in sorted(logs_dir.glob("*.md"), reverse=True)[:20]:
+                sid = log_file.stem
+                resources.append(types.Resource(
+                    uri=f"repro://session/{sid}",
+                    name=f"Session {sid}",
+                    mimeType="text/markdown",
+                ))
+        return resources
+
+    return await asyncio.to_thread(_collect)
 
 
 @app.read_resource()
@@ -344,8 +369,6 @@ async def read_resource(uri: str) -> str:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    import asyncio
-
     async def _run() -> None:
         async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
             await app.run(read_stream, write_stream, app.create_initialization_options())

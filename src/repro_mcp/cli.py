@@ -67,6 +67,9 @@ def cmd_end(args) -> None:
     if not active_path.exists():
         return  # no active session — silent no-op
 
+    from .logger import is_git_repo
+    has_git = is_git_repo(root)
+
     active = json.loads(active_path.read_text(encoding="utf-8"))
     sid = active["session_id"]
 
@@ -81,6 +84,11 @@ def cmd_end(args) -> None:
     )
     active_path.unlink()
     print(f"repro-mcp: session closed — {sid} ({args.outcome})")
+    if not has_git:
+        print(
+            f"repro-mcp: warning: no git repository found at {root} — "
+            "git diff summary was skipped. For full reproducibility, use version control."
+        )
 
 
 def main() -> None:

@@ -8,3 +8,5 @@ venv/
 .env
 *.egg
 .repro/
+start_server.bat
+.pytest_cache/
