@@ -1,5 +1,19 @@
 # repro-mcp
 
+> [!NOTE]
+> **Should I use `repro-mcp` or `repro-git-hook`?**
+> 
+> If you are looking for an infallible, automated audit trail that doesn't rely on the AI remembering to log its own decisions, we strongly recommend using the sister project: **[repro-git-hook](https://github.com/ABindoff/repro-git-hook)**. 
+>
+> `repro-mcp` relies on "In-band" logging (the AI must actively call the MCP logging tools). In practice, AI agents often forget to do this when tackling complex coding problems, leading to missing logs. `repro-git-hook` solves this by operating "Out-of-band" — it passively hooks into your `git commit` lifecycle to run reproducibility linting, detect secrets, and extract native IDE transcripts automatically.
+>
+> **To install `repro-git-hook` instantly:**
+> Add the following to your project's `.git/hooks/pre-commit` (requires [uv](https://docs.astral.sh/uv/)):
+> ```bash
+> #!/bin/bash
+> uvx --from git+https://github.com/ABindoff/repro-git-hook repro-hook pre-commit
+> ```
+
 An MCP server that brings reproducibility logging to AI-assisted scientific computing.
 
 Git records *what* changed. `repro-mcp` records *why* — logging prompts, responses, methodological decisions, and environment snapshots to human-readable markdown files that live alongside your code.
